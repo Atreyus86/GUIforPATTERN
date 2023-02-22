@@ -1,0 +1,248 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageDraw, ImageOps, ImageFont
+import os
+from tkinter import Label
+from tkinter import ttk
+
+root = tk.Tk()
+root.title("Generatore di griglie")
+root.geometry("500x500")
+root.resizable(False, False)
+root.withdraw()
+
+# Define top frame
+top_frame = tk.Frame(root)
+top_frame.pack(pady=10)
+
+# Create label with selected file
+label_selected_file = tk.Label(top_frame, text="")
+label_selected_file.grid(row=0, column=0)
+
+
+# Variabili globali
+background_filename = None
+canvas_size = (1440, 72)
+canvas_color = (0, 0, 0, 0)  # RGBA format
+canvas_border_width = 1
+canvas_border_color = (0, 0, 0, 255)  # RGBA format
+grid_width = 72
+grid_height = 72
+grid_line_width = 1
+grid_color = (0, 0, 0, 255)  # RGBA format
+circle_color = (0, 0, 0, 255)  # RGBA format
+background_mode = "fill"  # Options: "fill" or "fit"
+background_image_opacity = 255  # 0(transparent) to 255(opaque)
+output_folder = "."
+
+# Define background_image variable
+background_image = None
+
+def select_background_file():
+    global background_filename
+    background_filename = filedialog.askopenfilename(title="Seleziona il file di sfondo", filetypes=(("Immagini", "*.png *.jpg *.jpeg *.gif"), ("Tutti i file", "*.*")))
+    # Aggiornamento della label
+    if background_filename:
+        label_selected_file.config(text=os.path.basename(background_filename))
+    else:
+        label_selected_file.config(text="Nessun file selezionato")
+    update_canvas()
+
+def update_canvas_size():
+    global canvas_size
+    canvas_size_str = canvas_size_entry.get()
+    canvas_size = tuple(map(int, canvas_size_str.split('x')))
+    update_canvas()
+
+    # Funzione per generare l'immagine
+def generate_image():
+    global output_file, output_folder
+
+    # Update output_folder variable
+    output_folder = output_folder_entry.get()
+
+    # Update filename variable
+    filename = filename_entry.get()
+
+    # Update file_extension variable
+    file_extension = file_extension_entry.get()
+
+    # Update output_file variable
+    counter = 1
+    while os.path.exists(os.path.join(output_folder, f"{filename}_{str(counter).zfill(2)}.{file_extension}")):
+        counter += 1
+    output_file = os.path.join(output_folder, f"{filename}_{str(counter).zfill(2)}.{file_extension}")
+
+    update_canvas()
+
+    # Check if the output folder exists
+    if not os.path.exists(output_folder):
+        messagebox.showerror("Errore", f"La cartella di output {output_folder} non esiste.")
+        return
+
+    # Check if the output folder has write permission
+    if not os.access(output_folder, os.W_OK):
+        messagebox.showerror("Errore", f"La cartella di output {output_folder} non ha i permessi di scrittura.")
+        return
+
+    # Check if the image is saved successfully
+    if os.path.exists(output_file):
+        messagebox.showinfo("Salvataggio riuscito", f"Il file {output_file} è stato salvato con successo.")
+    else:
+        messagebox.showerror("Errore durante il salvataggio", "Si è verificato un errore durante il salvataggio dell'immagine.")
+
+def update_canvas():
+    global background_image
+    # Load background image
+    if background_filename:
+        background_image = Image.open(background_filename).convert('RGBA')
+    else:
+        background_image = None
+
+    # Adapt background image to canvas size
+    if background_image:
+        if background_mode == "fill":
+            background_image = ImageOps.fit(background_image, canvas_size, centering=(0.5, 0.5))
+
+
+    # Add opacity to background image
+    if background_image and background_image.mode != 'RGBA':
+        background_image = background_image.convert('RGBA')
+        background_image.putalpha(background_image_opacity)
+
+    # Create canvas
+    canvas_image = Image.new('RGBA', canvas_size, canvas_color)
+
+    # Draw border
+    draw = ImageDraw.Draw(canvas_image)
+    border_box = ((0, 0), (canvas_size[0] - 1, canvas_size[1] - 1))
+    draw.rectangle(border_box, outline = canvas_border_color, width = canvas_border_width)
+
+    # Draw grid
+    grid_image = Image.new('RGBA', canvas_size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(grid_image)
+    for x in range(0, canvas_size[0], grid_width):
+        line = ((x, 0), (x, canvas_size[1]))
+        draw.line(line, fill = grid_color, width = grid_line_width)
+    for y in range(0, canvas_size[1], grid_height):
+        line = ((0, y), (canvas_size[0], y))
+        draw.line(line, fill = grid_color, width = grid_line_width)
+
+    # Draw circle
+    circle_radius = min(canvas_size) / 2 - canvas_border_width
+    center = (canvas_size[0] / 2, canvas_size[1] / 2)
+    circle_box = ((center[0] - circle_radius, center[1] - circle_radius), (center[0] + circle_radius, center[1] + circle_radius))
+    draw.ellipse(circle_box, outline = circle_color, width = canvas_border_width)
+
+    # Draw diagonal lines
+    draw.line((0, 0, canvas_size[0], canvas_size[1]), fill = grid_color, width = grid_line_width)
+    draw.line((0, canvas_size[1], canvas_size[0], 0), fill = grid_color, width = grid_line_width)
+
+    # Merge circle with canvas and grid
+    merged_image = Image.alpha_composite(canvas_image, grid_image)
+    if circle_color != (0, 0, 0, 0):
+        if background_image:
+            merged_image = Image.alpha_composite(merged_image, background_image)
+
+
+# Save image
+output_folder = os.path.abspath(".")
+filename = "my_grid"
+file_extension = "png"
+counter = 1
+
+while os.path.exists(os.path.join(output_folder, f"{filename}_{str(counter).zfill(2)}.{file_extension}")):
+    counter += 1
+
+output_file = os.path.join(output_folder, f"{filename}_{str(counter).zfill(2)}.{file_extension}")
+
+# Define a function to open the image file
+def open_image():
+    os.system(output_file)
+
+# Create the main window
+root = tk.Tk()
+root.title("Generatore di griglie")
+root.geometry("500x500")
+root.resizable(False, False)
+root.withdraw()
+
+# Create the top frame
+top_frame = tk.Frame(root)
+top_frame.pack(pady = 10)
+
+# Create the middle frame
+middle_frame = tk.Frame(root)
+middle_frame.pack(pady = 10)
+
+# Create the bottom frame
+bottom_frame = tk.Frame(root)
+bottom_frame.pack(pady = 10)
+
+# Create the widgets
+background_label = tk.Label(top_frame, text="Scegli l'immagine di sfondo:")
+background_button = tk.Button(top_frame, text="Sfoglia...", command=select_background_file)
+generate_button = tk.Button(bottom_frame, text="Genera", command=generate_image)
+
+output_folder_label = tk.Label(middle_frame, text="Cartella di output:")
+output_folder_entry = tk.Entry(middle_frame)
+
+filename_label = tk.Label(middle_frame, text="Nome del file:")
+filename_entry = tk.Entry(middle_frame)
+
+file_extension_label = tk.Label(middle_frame, text="Estensione del file:")
+file_extension_entry = tk.Entry(middle_frame)
+
+canvas_size_label = tk.Label(middle_frame, text="Dimensioni della griglia (l x h):")
+canvas_size_entry = tk.Entry(middle_frame)
+canvas_size_entry.insert(0, f"{canvas_size[0]}x{canvas_size[1]}")
+canvas_size_entry.bind("<Return>", lambda event: update_canvas_size())
+
+background_mode_label = tk.Label(middle_frame, text="Modalità immagine di sfondo:")
+background_mode_combobox = ttk.Combobox(middle_frame, values=["fill", "fit"])
+
+background_opacity_label = tk.Label(middle_frame, text="Opacità immagine di sfondo (0-255):")
+background_opacity_scale = tk.Scale(middle_frame, from_=0, to=255, orient=tk.HORIZONTAL)
+
+# Set the default values
+output_folder_entry.insert(0, output_folder)
+filename_entry.insert(0, filename)
+file_extension_entry.insert(0, file_extension)
+background_mode_combobox.set(background_mode)
+background_opacity_scale.set(background_image_opacity)
+
+# Add the widgets to the frames
+background_label.grid(row=0, column=0)
+background_button.grid(row=0, column=1)
+
+output_folder_label.grid(row=0, column=0)
+output_folder_entry.grid(row=0, column=1)
+
+filename_label.grid(row=1, column=0)
+filename_entry.grid(row=1, column=1)
+
+file_extension_label.grid(row=2, column=0)
+file_extension_entry.grid(row=2, column=1)
+
+canvas_size_label.grid(row=3, column=0)
+canvas_size_entry.grid(row=3, column=1)
+
+background_mode_label.grid(row=4, column=0)
+background_mode_combobox.grid(row=4, column=1)
+
+background_opacity_label.grid(row=5, column=0)
+background_opacity_scale.grid(row=5, column=1)
+
+generate_button.pack()
+
+
+def on_closing():
+    root.quit()
+    root.destroy()
+
+# Definisci la funzione per associarla all'evento di chiusura della finestra
+root.protocol("WM_DELETE_WINDOW", on_closing)
+
+# Esegui il main loop
+root.deiconify()
+root.mainloop()
